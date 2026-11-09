@@ -1,0 +1,15 @@
+@echo off
+set "TEMP=%~dp0cache\tmp"
+set "TMP=%TEMP%"
+set "HF_HOME=%~dp0cache\huggingface"
+set "TORCH_HOME=%~dp0cache\torch"
+set "XDG_CACHE_HOME=%~dp0cache"
+set "PIP_CACHE_DIR=%~dp0.setup\pip-cache"
+set "MPLCONFIGDIR=%~dp0cache\matplotlib"
+set "YOLO_CONFIG_DIR=%~dp0cache\ultralytics"
+set "NUMBA_CACHE_DIR=%~dp0cache\numba"
+set "UV_CACHE_DIR=%~dp0.setup\uv-cache"
+set "UV_PYTHON_INSTALL_DIR=%~dp0.setup\python"
+set "PYTHONNOUSERSITE=1"
+if not exist "%TEMP%" mkdir "%TEMP%"
+exit /b 0
