@@ -62,8 +62,17 @@ character's original bone hierarchy and rest pose separately from its animation;
 the first animation frame does not replace the rest pose. Existing retargeted
 characters can be exported again to use the corrected FBX rest-pose handling.
 
-Known humanoid mappings are automatic; custom bone mapping is not yet available.
-Files missing required body bones are rejected with a message. The viewport shows
+Known humanoid mappings (Mixamo, VRM, PMX) are automatic. A custom-skeleton FBX
+can be imported by placing an explicit bone-mapping JSON next to it, named
+`<file>.fbx.json`, with a `body` object mapping the 22 humanoid slots
+(`Hips`, `Spine`, `Spine1`, `Spine2`, `LeftUpLeg`, ... `RightHand`) to bone
+names in the file, and an optional `fingers` entry (`"vrm_style"` or an explicit
+mapping). Rigs whose .L/.R bone names sit on the geometrically opposite
+side (common in PMX/MMD-derived FBX exports) add "swap_sides": true, which
+exchanges every Left*/Right* slot pair, including vrm_style fingers. Nothing
+is guessed; missing or ambiguous slots are rejected with a message naming them. Files missing required body bones are rejected with a message. Texture files
+referenced but absent on disk never block import; the viewport falls back to material colors and a
+message reports the count. The viewport shows
 base-color textures at their original resolution, with simplified lighting rather
 than a full material/physics renderer. Existing characters prepare a texture cache
 in the background on first display; reimporting or retargeting is not required.
@@ -752,6 +761,16 @@ replace the bind pose or edit project motion/contact timings.
 **Place at origin** and **Symmetrical rest pose** default off and apply only to
 source-skeleton FBX/BVH exports, including both BVH profiles. They are unavailable
 for Blender project exports and do not change imported-character exports.
+
+**Re-encode through Blender (strict FBX importers)** applies to source-skeleton
+FBX exports only and defaults off. The direct writer produces a compact FBX 7.4
+file that Blender imports, but strict Autodesk FBX SDK consumers, such as
+Cascadeur, can reject its minimal header layout. With this option the written
+skeleton FBX is immediately imported and exported again by the bundled Blender
+character runtime, producing a conventional SDK-layout file with the same
+skeleton, motion and timing. Export takes longer and requires the Blender
+runtime from `install.cmd`; character (retargeted) exports are unaffected
+because they are already written by Blender.
 
 - **Place at origin:** move each person's first exported root position to X=0,
   Z=0, preserving its height, facing and subsequent travel. People are centered

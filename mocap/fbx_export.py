@@ -7,7 +7,38 @@ from .motion_tools import selected_export
 from .result_artifacts import file_stat
 
 
-def run(request, emit=lambda *a, **k:None):
+def _reencode(temporary, message):
+    """Re-export a written skeleton FBX through the bundled Blender runtime.
+
+    The direct writer's compact header/Definitions layout imports in Blender but
+    can be rejected by strict Autodesk FBX SDK consumers such as Cascadeur;
+    Blender writes the conventional full layout without changing the take.
+    """
+    import subprocess
+    from .retarget.runtime import blender
+    converted = temporary.with_name(temporary.name + '.blender.fbx')
+    converted.unlink(missing_ok=True)
+    message('Re-encoding through Blender (strict FBX importers)')
+    command = [str(blender()), '-b', '--factory-startup', '--disable-autoexec', '--threads', '3', '--python-exit-code', '1',
+               '--python', str(Path(__file__).with_name('fbx_blender_pass.py')), '--', str(temporary), str(converted)]
+    env = dict(os.environ, PYTHONUTF8='1', PYTHONIOENCODING='utf-8',
+               OMP_NUM_THREADS='1', OPENBLAS_NUM_THREADS='1', MKL_NUM_THREADS='1')
+    try:
+        try:
+            done = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                  encoding='utf-8', errors='replace', env=env,
+                                  creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0), timeout=1800)
+        except subprocess.TimeoutExpired:
+            raise ValueError('Blender FBX re-encode timed out')
+        tail = ' | '.join(line.strip() for line in (done.stdout or '').splitlines() if line.strip())
+        if done.returncode != 0 or not converted.is_file() or converted.stat().st_size == 0:
+            raise ValueError('Blender FBX re-encode failed: ' + tail[-500:])
+        os.replace(converted, temporary)
+    finally:
+        converted.unlink(missing_ok=True)
+
+
+def run(request, emit=lambda *a, **k: None):
     from .blend_support import build, cleanup, partial
     from .fbx_writer import write
     from .gemx_result import is_project
@@ -46,11 +77,17 @@ def run(request, emit=lambda *a, **k:None):
             if is_project(project):
                 from .gemx_skeleton_export import write as write_soma
 
-                def progress(done,total):
-                    emit('progress',stage='save_fbx',current=i*total+done,total=len(rows)*total,message='Export SOMA FBX')
+                state = {'total': 1}
 
-                staged.append((output,target,work))
-                native_checks.append(write_soma(temporary,row,source,destinations,'fbx',progress))
+                def progress(done, total):
+                    state['total'] = total
+                    emit('progress', stage='save_fbx', current=i*total+done, total=len(rows)*total, message='Export SOMA FBX')
+
+                staged.append((output, target, work))
+                native_checks.append(write_soma(temporary, row, source, destinations, 'fbx', progress))
+                if row.get('blender_convert', False):
+                    _reencode(temporary, lambda text: emit('progress', stage='save_fbx',
+                                                           current=(i+1)*state['total'], total=len(rows)*state['total'], message=text))
                 continue
             meta=project/(kind+'_mixamo.json');info=json.loads(meta.read_text(encoding='utf-8'))
             paths=[meta,source]
@@ -84,6 +121,9 @@ def run(request, emit=lambda *a, **k:None):
                       transform=transform,progress=progress,
                       rig_name=row.get('rig_name','SourceAnimation'),prepend_tpose=row.get('prepend_tpose',False),symmetric_bind=symmetric)
             finally:frames._mmap.close()
+            if row.get('blender_convert', False):
+                _reencode(temporary, lambda text: emit('progress', stage='save_fbx',
+                                                       current=(i+1)*52, total=len(rows)*52, message=text))
         for work in compatibility_dirs:
             build(work,'fbx_compatibility_scene.py',emit,'save_fbx')
             if not (work/'compatible.fbx').is_file():

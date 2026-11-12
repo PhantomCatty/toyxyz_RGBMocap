@@ -125,8 +125,15 @@ class CharacterWorkspace:
             QMessageBox.information(self,'Import Character','Up to 8 characters are supported per project.');return
         name,_=QFileDialog.getOpenFileName(self,'Import Character','','Humanoid characters (*.fbx *.vrm *.pmx)')
         if not name:return
+        # An explicit sidecar bone mapping (<file>.fbx.json) enables custom-skeleton FBX import.
+        mapping=None
+        if Path(name).suffix.lower()=='.fbx':
+            sidecar=Path(name+'.json')
+            if sidecar.is_file():mapping=str(sidecar)
         ident=uuid.uuid4().hex
-        self.start_character_job(dict(mode='import',file=name,output=str(self.character_path(ident+'/asset')),id=ident))
+        job=dict(mode='import',file=name,output=str(self.character_path(ident+'/asset')),id=ident)
+        if mapping:job['mapping']=mapping
+        self.start_character_job(job)
 
     def character_sources(self):
         from .motion_tools import result_is_current

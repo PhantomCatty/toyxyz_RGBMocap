@@ -601,7 +601,7 @@ def build_workspace(w):
     file_menu = w.menuBar().addMenu("File")
     w.open_actions = [file_menu.addAction("Open Video...", w.choose_video), file_menu.addAction("Open Project...", w.choose_project)]
     w.import_character_action=file_menu.addAction('Import Character...',w.choose_character)
-    w.import_character_action.setToolTip('Import a Mixamo FBX, VRM or PMX humanoid. Right-click its People row to retarget a source person.')
+    w.import_character_action.setToolTip('Import a Mixamo FBX, VRM or PMX humanoid, or a custom-skeleton FBX with a <file>.fbx.json bone mapping. Right-click its People row to retarget a source person.')
     w.save_project_action = file_menu.addAction('Save Project As...', w.save_project_as)
     w.save_project_action.setShortcut('Ctrl+Shift+S')
     w.save_project_action.setToolTip(tooltip_text('Save a separate project folder with a new name and location, including its video, motion and settings. Continue working in the saved copy.'))

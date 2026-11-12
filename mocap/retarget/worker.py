@@ -34,7 +34,7 @@ def main(args):
             rows.append(dict(c,asset=job['prefix']+'/'+c['id']+'/asset'))
         result=dict(characters=rows)
     elif job['mode']=='import':
-        invoke('import',out,job['file'])
+        invoke('import',out,job['file'],job.get('mapping') or '')
         result=json.loads((out/'import.json').read_text(encoding='utf8'))
     elif job['mode']=='export':
         for i,(take,target) in enumerate(zip(job['takes'],job['files'])):

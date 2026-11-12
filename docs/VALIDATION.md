@@ -2384,3 +2384,30 @@ executed both the surface and 77-bone shaders at three frames. See the
   that overlap the selected inputs. A mixed GEM-X and ExMR BVH batch rejected
   an overwrite of a different row's source. ExMR's 52-bone FBX and BVH exports
   passed with the T-pose, origin and symmetrical rest options enabled.
+### Source FBX foot/toe neutral roll (2026-11-11)
+
+Source FBX exports used the shortest-arc display frame for the foot and toe
+bones. Its Y direction was the neutral ankle-to-toe vector, but its X/Z axes
+were rolled 17.3 degrees (left) and 12.2 degrees (right) from the registered
+neutral foot width. Strict consumers such as Cascadeur can use those local axes
+to place foot roll/eversion helpers, so the helper appeared outside the foot.
+
+`mocap/bone_overlay.py::neutral_foot_frame` now builds the foot and toe display
+frames from the registered neutral foot direction, body up, and consistent
+lateral sign. `fbx_bind.prepare` and the symmetric-rest FBX path apply it. This
+is a constant rest/display-axis change; it does not alter positions, skinning,
+inference or animation timing.
+
+Validation used the cached corrected take behind the current StandHappy export
+and the direct FBX writer. The foot X-to-width angle fell from 17.3/12.2 degrees
+to 0.04/0.03 degrees; toe frames changed by less than 5.2 degrees. Reimporting
+the old and new files in Blender 4.5 changed no joint world position by more
+than 0.00000004 m (float precision), and the foot/toe skin bind-relative
+rotation changed by less than 0.000000000000001. With a prepended T-pose first
+frame, the Blender-re-encoded foot X-to-width angle also stayed at 0.0 degrees.
+Without that first bind frame, Blender can use the first animated pose as the
+node rest and add about 10-13 degrees of foot roll; keep Add T-pose before
+motion enabled when using the strict re-encoder. Cascadeur itself was not
+available for this check; its foot helper still needs a visual confirmation.
+Existing cached assets are invalidated by the `fbx_bind.py` code identity, so
+run Prepare Preview again before exporting.

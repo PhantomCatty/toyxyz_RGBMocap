@@ -1,12 +1,13 @@
 """Known humanoid import and compact, bone-driven viewport data."""
 import json
+import os
 import sys
 import struct
 from pathlib import Path
 import numpy as np
 import bpy
 import addon_utils
-from .mapping import A, PARENTS, body_mapping, body_trajectory_root
+from .mapping import A, PARENTS, NAMES as body_mapping_names, body_mapping, body_trajectory_root
 from .file_paths import io_path, save_blend
 
 
@@ -14,15 +15,23 @@ def report(message):
     print('CHARACTER: '+message, flush=True)
 
 
-def import_character(filename, out):
+def import_character(filename, out, mapping_file=None):
     Path(io_path(out)).mkdir(parents=True,exist_ok=True)
-    kind={'.fbx':'mixamo','.vrm':'vrm','.pmx':'pmx'}[filename.suffix.lower()]
+    # An explicit sidecar mapping takes precedence for FBX; nothing is guessed.
+    custom_body=None;fingers=None;swap_sides=False
+    if filename.suffix.lower()=='.fbx' and mapping_file:
+        from .mapping import load_custom_spec, swap_body_sides
+        custom_body,fingers,swap_sides=load_custom_spec(mapping_file)
+        if swap_sides:custom_body=swap_body_sides(custom_body)
+        kind='custom'
+    else:
+        kind={'.fbx':'mixamo','.vrm':'vrm','.pmx':'pmx'}[filename.suffix.lower()]
     bpy.ops.wm.read_factory_settings(use_empty=True)
     addons=Path(__file__).resolve().parents[2]/'third_party/character_import'
     sys.path.insert(0,str(addons))
     semantic={}
     report('Importing '+filename.name)
-    if kind=='mixamo':
+    if kind in ('mixamo','custom'):
         bpy.ops.import_scene.fbx(filepath=str(filename),automatic_bone_orientation=False,use_prepost_rot=True)
     elif kind=='vrm':
         addon_utils.enable('io_scene_vrm',default_set=True,persistent=False)
@@ -49,7 +58,10 @@ def import_character(filename, out):
     arms=[o for o in bpy.context.scene.objects if o.type=='ARMATURE']
     if len(arms)!=1:raise ValueError('Import one humanoid armature per character file.')
     arm=arms[0]
-    mapping=body_mapping(kind,arm.data.bones.keys(),semantic)
+    if kind=='custom':
+        from .mapping import custom_finger_semantic
+        semantic=custom_finger_semantic(fingers,arm.data.bones.keys(),swap_sides)
+    mapping=body_mapping(kind,arm.data.bones.keys(),custom_body if kind=='custom' else semantic)
     trajectory_root=body_trajectory_root({b.name:b.parent.name if b.parent else None for b in arm.data.bones},mapping)
     for o in bpy.context.scene.objects:
         o.animation_data_clear()
@@ -75,12 +87,20 @@ def import_character(filename, out):
     count=sum(len(o.data.vertices) for o in meshes)
     if not 0<count<=1_000_000:raise ValueError('Character preview supports 1 to 1,000,000 vertices.')
     rig=dict(kind=kind,armature=arm.name,semantic=semantic,trajectory_root=trajectory_root,bones=[dict(name=b.name,parent=b.parent.name if b.parent else None) for b in arm.data.bones],meshes=[dict(name=o.name,vertices=len(o.data.vertices)) for o in meshes])
+    if kind=='custom':rig['custom_mapping']=dict(zip(body_mapping_names,mapping));rig['swap_sides']=swap_sides
     Path(io_path(out/f'{kind}-rig.json')).write_text(json.dumps(rig,ensure_ascii=False),encoding='utf8')
     np.savez(io_path(out/f'{kind}-canonical.npz'),rest=rest,names=mapping,parents=PARENTS)
     from .blender_geometry import register
     report('Registering soles, palms and humanoid proportions')
     register(out,kind,rig,arm,mapping,rest)
-    bpy.ops.file.pack_all()
+    # Missing texture files only downgrade preview colors; they never block import.
+    missing=0
+    for image in bpy.data.images:
+        if image.packed_file is None and image.source=='FILE' and os.path.isfile(str(bpy.path.abspath(image.filepath))):
+            try: image.pack()
+            except RuntimeError: missing+=1
+        elif image.packed_file is None and image.source=='FILE': missing+=1
+    if missing: report(f'{missing} texture file(s) missing; the preview falls back to material colors')
     save_blend(out/f'{kind}-rest.blend')
     preview(out,arm,None,1)
     metadata=dict(kind=kind,name=filename.stem,vertices=count,bones=len(arm.data.bones))
@@ -113,7 +133,7 @@ def vertex_colors(obj):
                 node=next((n for n in nodes if n.type=='TEX_IMAGE' and n.image and ('shade' not in n.name.lower())),None)
                 if node:tex=node.image
         pixels=None
-        if tex and tex.size[0]*tex.size[1]<=16_777_216:
+        if tex and tex.size[0] and tex.size[1] and tex.size[0]*tex.size[1]<=16_777_216:
             pixels=np.empty(tex.size[0]*tex.size[1]*4,np.float32)
             tex.pixels.foreach_get(pixels);pixels=pixels.reshape(tex.size[1],tex.size[0],4)
         materials.append((col,pixels))
@@ -177,10 +197,10 @@ def preview(out,arm,keyed,n):
 
 def main(args):
     mode,folder,*rest=args;out=Path(folder)
-    if mode=='import':import_character(Path(rest[0]),out)
+    if mode=='import':import_character(Path(rest[0]),out,Path(rest[1]) if len(rest)>1 and rest[1] else None)
     elif mode=='textures':
         kind=json.loads(Path(io_path(out/'import.json')).read_text(encoding='utf8'))['kind']
-        if kind not in {'mixamo','vrm','pmx'}:raise ValueError('Unsupported character kind')
+        if kind not in {'mixamo','vrm','pmx','custom'}:raise ValueError('Unsupported character kind')
         bpy.ops.wm.open_mainfile(filepath=io_path(out/f'{kind}-rest.blend'),load_ui=False)
         from .blender_textures import extract
         extract(out)

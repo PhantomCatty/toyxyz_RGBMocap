@@ -27,6 +27,8 @@ class SourceExportDialog(QDialog):
         self.place_at_origin.setToolTip("Center each person's first exported frame on world X/Z. Height and travel are preserved. People are centered independently; their relative placement changes.")
         self.symmetric_rest=QCheckBox('Symmetrical rest pose');layout.addWidget(self.symmetric_rest)
         self.symmetric_rest.setToolTip('Use mirrored left/right rest bones with averaged paired lengths and a straight vertical spine. Animation rotations and timing are retained; changed proportions can move hands and feet. Exported files only.')
+        self.blender_convert=QCheckBox('Re-encode through Blender (strict FBX importers)');layout.addWidget(self.blender_convert)
+        self.blender_convert.setToolTip('After writing the skeleton FBX, import and export it again through the bundled Blender runtime. The compact direct layout imports in Blender but strict Autodesk FBX SDK consumers such as Cascadeur can reject it; Blender writes the conventional full layout. Skeleton, motion and timing are unchanged. Export takes longer and needs the Blender character runtime.')
         self.animate_camera=QCheckBox('Export saved camera tracking');self.animate_camera.setChecked(True);layout.addWidget(self.animate_camera)
         self.background_refine=QCheckBox('Refine Camera Rotation');layout.addWidget(self.background_refine)
         from .camera_ui import BACKGROUND_HELP
@@ -48,6 +50,7 @@ class SourceExportDialog(QDialog):
         self.fbx_compatibility.setVisible(fmt=='fbx')
         self.whole_scene.setVisible(blend and self.model=='mamma');self.tpose.setEnabled(not whole);self.tpose.setVisible(not whole)
         for control in (self.place_at_origin,self.symmetric_rest):control.setVisible(not blend);control.setEnabled(not blend)
+        self.blender_convert.setVisible(fmt=='fbx');self.blender_convert.setEnabled(fmt=='fbx')
         self.animate_camera.setVisible(blend and not whole)
         camera=blend and not whole and self.model in ('flowhmr','exmr')
         self.background_refine.setVisible(camera);self.background_refine.setEnabled(self.animate_camera.isChecked())
@@ -70,5 +73,6 @@ class SourceExportDialog(QDialog):
         value=dict(format='blend_scene' if whole else fmt,bvh_profile=self.profile.currentData() if fmt=='bvh' else 'generic',prepend_tpose=self.tpose.isChecked() and not whole)
         if fmt=='fbx':value['fbx_compatibility']=self.fbx_compatibility.isChecked()
         value.update(place_at_origin=self.place_at_origin.isChecked() and fmt in ('fbx','bvh'),symmetric_rest=self.model!='gemx' and self.symmetric_rest.isChecked() and fmt in ('fbx','bvh'))
+        value['blender_convert']=fmt=='fbx' and self.blender_convert.isChecked()
         if fmt=='blend':value.update(animate_camera=self.animate_camera.isChecked(),background_refine=self.background_refine.isChecked() and self.animate_camera.isChecked() and self.model in ('flowhmr','exmr'),camera_translation_scale=self.translation_scale.value())
         return value

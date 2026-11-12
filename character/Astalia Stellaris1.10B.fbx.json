@@ -1,0 +1,28 @@
+{
+  "body": {
+    "Hips": "Hips",
+    "Spine": "腰",
+    "Spine1": "Spine",
+    "Spine2": "Chest",
+    "Neck": "Neck",
+    "Head": "Head",
+    "LeftShoulder": "Shoulder.L",
+    "RightShoulder": "Shoulder.R",
+    "LeftArm": "UpperArm.L",
+    "RightArm": "UpperArm.R",
+    "LeftForeArm": "LowerArm.L",
+    "RightForeArm": "LowerArm.R",
+    "LeftHand": "Hand.L",
+    "RightHand": "Hand.R",
+    "LeftUpLeg": "UpperLeg.L",
+    "RightUpLeg": "UpperLeg.R",
+    "LeftLeg": "LowerLeg.L",
+    "RightLeg": "LowerLeg.R",
+    "LeftFoot": "Foot.L",
+    "RightFoot": "Foot.R",
+    "LeftToeBase": "Toes.L",
+    "RightToeBase": "Toes.R"
+  },
+  "fingers": "vrm_style",
+  "swap_sides": true
+}
